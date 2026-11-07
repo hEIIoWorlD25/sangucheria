@@ -1,34 +1,13 @@
 const express = require('express');
-const { randomBytes } = require('node:crypto');
+const { exigirRol, prepararCSRF, validarCSRF } = require('./lib/seguridad');
 const db = require('./database');
 
 const router = express.Router();
 
-const categorias = [
-  'Pedido incompleto',
-  'Producto equivocado',
-  'Demora',
-  'Problema de pago',
-  'Otro'
-];
-
-const prioridades = ['Baja', 'Media', 'Alta'];
+const { categorias, prioridades, validarTicket } = require('./lib/ticket-reglas');
 
 // Permite mostrar textos del usuario de forma segura en el HTML.
-function escapar(valor = '') {
-  const caracteres = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-
-  return String(valor).replace(
-    /[&<>"']/g,
-    caracter => caracteres[caracter]
-  );
-}
+const { escapar } = require('./lib/html');
 
 function pagina(titulo, contenido) {
   return `
@@ -207,20 +186,7 @@ function formulario(token, datos = {}, error = '') {
 }
 
 // Todas las rutas de este módulo requieren iniciar sesión.
-router.use((req, res, next) => {
-  if (!req.session.usuarioId) {
-    return res.redirect('/login');
-  }
-
-  if (req.session.rol !== 'cliente') {
-    return res.status(403).send(
-      'Acceso reservado a clientes.'
-    );
-  }
-
-  res.set('Cache-Control', 'no-store');
-  next();
-});
+router.use(exigirRol('cliente', 'Acceso reservado a clientes.'));
 
 // Lista únicamente los tickets del cliente conectado.
 router.get('/', (req, res) => {
@@ -281,65 +247,16 @@ router.get('/', (req, res) => {
 
 // Abre el formulario y prepara un token para su envío.
 router.get('/nuevo', (req, res) => {
-  if (!req.session.csrf) {
-    req.session.csrf = randomBytes(24).toString('hex');
-  }
+  prepararCSRF(req);
 
   res.send(formulario(req.session.csrf));
 });
 
 // Valida los datos y guarda el ticket.
-router.post('/', (req, res) => {
-  if (
-    typeof req.session.csrf !== 'string' ||
-    req.body?.csrfToken !== req.session.csrf
-  ) {
-    return res.status(403).send(
-      'Formulario no válido. Regresa a /tickets/nuevo e inténtalo nuevamente.'
-    );
-  }
+router.post('/', validarCSRF('Formulario no válido. Regresa a /tickets/nuevo e inténtalo nuevamente.'), (req, res) => {
 
-  const campos = [
-    'codigoPedido',
-    'titulo',
-    'descripcion',
-    'categoria',
-    'prioridad'
-  ];
 
-  const datos = {};
-  let tiposValidos = true;
-
-  for (const campo of campos) {
-    if (typeof req.body[campo] !== 'string') {
-      tiposValidos = false;
-      datos[campo] = '';
-    } else {
-      datos[campo] = req.body[campo].trim();
-    }
-  }
-
-  let error = '';
-
-  if (!tiposValidos) {
-    error = 'Los campos deben contener texto.';
-  } else if (!datos.codigoPedido || datos.codigoPedido.length > 40) {
-    error = 'Ingresa un código de pedido válido.';
-  } else if (
-    [...datos.titulo].length < 1 ||
-    [...datos.titulo].length > 80
-  ) {
-    error = 'El título debe tener entre 1 y 80 caracteres.';
-  } else if (
-    [...datos.descripcion].length < 10 ||
-    [...datos.descripcion].length > 500
-  ) {
-    error = 'La descripción debe tener entre 10 y 500 caracteres.';
-  } else if (!categorias.includes(datos.categoria)) {
-    error = 'Selecciona una categoría válida.';
-  } else if (!prioridades.includes(datos.prioridad)) {
-    error = 'Selecciona una prioridad válida.';
-  }
+  const { datos, error } = validarTicket(req.body);
 
   if (error) {
     return res.status(400).send(

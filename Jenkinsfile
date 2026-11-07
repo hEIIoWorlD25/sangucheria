@@ -26,10 +26,7 @@ pipeline {
 
         stage('Revisar sintaxis') {
             steps {
-                sh 'node --check app.js'
-                sh 'node --check database.js'
-                sh 'node --check tickets.js'
-                sh 'node --check personal.js'
+                sh 'npm run check'
             }
         }
 
@@ -46,3 +43,4 @@ pipeline {
         }
     }
 }
+

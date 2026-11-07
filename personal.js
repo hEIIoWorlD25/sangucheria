@@ -1,44 +1,17 @@
+const { siguienteEstado: obtenerSiguienteEstado } = require('./lib/ticket-reglas');
 const express = require('express');
-const { randomBytes } = require('node:crypto');
+const { exigirRol, prepararCSRF, validarCSRF } = require('./lib/seguridad');
 const db = require('./database');
 
 const router = express.Router();
 
-function escapar(valor = '') {
-  const caracteres = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-
-  return String(valor).replace(
-    /[&<>"']/g,
-    caracter => caracteres[caracter]
-  );
-}
+const { escapar } = require('./lib/html');
 
 // Solo permite el acceso al personal autenticado.
-router.use((req, res, next) => {
-  if (!req.session.usuarioId) {
-    return res.redirect('/login');
-  }
-
-  if (req.session.rol !== 'personal') {
-    return res.status(403).send(
-      'Acceso reservado al personal de la sanguchería.'
-    );
-  }
-
-  res.set('Cache-Control', 'no-store');
-  next();
-});
+router.use(exigirRol('personal', 'Acceso reservado al personal de la sanguchería.'));
 
 router.get('/', (req, res) => {
-  if (!req.session.csrf) {
-    req.session.csrf = randomBytes(24).toString('hex');
-  }
+  prepararCSRF(req);
 
   const tickets = db.prepare(`
     SELECT
@@ -56,16 +29,8 @@ router.get('/', (req, res) => {
   `).all();
 
   const filas = tickets.map(ticket => {
-    let siguienteEstado = '';
-    let textoBoton = '';
-
-    if (ticket.estado === 'Pendiente') {
-      siguienteEstado = 'En proceso';
-      textoBoton = 'Iniciar atención';
-    } else if (ticket.estado === 'En proceso') {
-      siguienteEstado = 'Resuelto';
-      textoBoton = 'Resolver ticket';
-    }
+    const siguienteEstado = obtenerSiguienteEstado(ticket.estado);
+    const textoBoton = siguienteEstado === 'En proceso' ? 'Iniciar atención' : 'Resolver ticket';
 
     const accion = siguienteEstado ? `
       <form action="/personal/tickets/${ticket.id}/estado" method="POST">
@@ -231,15 +196,8 @@ router.get('/', (req, res) => {
   `);
 });
 
-router.post('/tickets/:id/estado', (req, res) => {
-  if (
-    typeof req.session.csrf !== 'string' ||
-    req.body?.csrfToken !== req.session.csrf
-  ) {
-    return res.status(403).send(
-      'Formulario no válido. Regresa al panel y vuelve a intentarlo.'
-    );
-  }
+router.post('/tickets/:id/estado', validarCSRF('Formulario no válido. Regresa al panel y vuelve a intentarlo.'), (req, res) => {
+
 
   const id = Number(req.params.id);
 
@@ -255,13 +213,7 @@ router.post('/tickets/:id/estado', (req, res) => {
     return res.status(404).send('El ticket no existe.');
   }
 
-  let siguienteEstado = '';
-
-  if (ticket.estado === 'Pendiente') {
-    siguienteEstado = 'En proceso';
-  } else if (ticket.estado === 'En proceso') {
-    siguienteEstado = 'Resuelto';
-  }
+  const siguienteEstado = obtenerSiguienteEstado(ticket.estado);
 
   if (!siguienteEstado || req.body.estado !== siguienteEstado) {
     return res.status(409).send(

@@ -120,3 +120,4 @@ try {
   console.error('No se pudo completar la preparación: ' + error.message);
   process.exitCode = 1;
 }
+
