@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 // La base de datos se guardará dentro de la carpeta data.
-const carpetaDatos = path.join(__dirname, 'data');
+const carpetaDatos = path.resolve(
+  process.env.DATA_DIR || path.join(__dirname, 'data')
+);
 fs.mkdirSync(carpetaDatos, { recursive: true });
 
 const db = new DatabaseSync(

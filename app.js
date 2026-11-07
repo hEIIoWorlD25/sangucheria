@@ -113,6 +113,10 @@ app.use((error, req, res, next) => {
   res.status(500).send('Ocurrió un error en el servidor.');
 });
 
-app.listen(puerto, 'localhost', () => {
-  console.log('Servidor disponible en http://localhost:3000');
-});
+if (require.main === module) {
+  app.listen(puerto, process.env.HOST || 'localhost', () => {
+    console.log('Servidor disponible en http://localhost:3000');
+  });
+}
+
+module.exports = app;
