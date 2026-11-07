@@ -7,6 +7,7 @@ RUN npm ci --omit=dev
 
 COPY app.js database.js tickets.js personal.js ./
 COPY public ./public
+COPY lib ./lib
 
 RUN mkdir -p /app/data && chown node:node /app/data
 

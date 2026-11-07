@@ -110,7 +110,7 @@ function cantidadTickets() {
   return db.prepare('SELECT count(*) AS cantidad FROM tickets').get().cantidad;
 }
 
-describe('PC11 - Sistema de tickets de la sanguchería', { concurrency: false }, () => {
+describe('PC11 y PC12 - Sistema de tickets de la sanguchería', { concurrency: false }, () => {
   before(async () => {
     // Este usuario y su pedido se crean únicamente en la base temporal.
     const salt = randomBytes(16).toString('hex');
@@ -291,4 +291,100 @@ describe('PC11 - Sistema de tickets de la sanguchería', { concurrency: false },
     assert.equal(reutilizada.status, 302);
     assert.equal(reutilizada.location, '/login');
   });
+
+  // PC12: escenarios adicionales sugeridos con apoyo de IA y verificados al ejecutar.
+  for (const [nombre, cambios, esperado] of [
+    ['Título de 1 y descripción de 10 caracteres', { titulo: 'A', descripcion: 'D'.repeat(10) }, 303],
+    ['Título de 80 y descripción de 500 caracteres', { titulo: 'A'.repeat(80), descripcion: 'D'.repeat(500) }, 303],
+    ['Descripción de 501 caracteres', { descripcion: 'D'.repeat(501) }, 400],
+    ['Título compuesto solo por espacios', { titulo: '   ' }, 400],
+    ['Categoría fuera del catálogo', { categoria: 'No existe' }, 400],
+    ['Prioridad fuera del catálogo', { prioridad: 'Urgente' }, 400],
+    ['Pedido inexistente', { codigoPedido: 'NO-EXISTE' }, 400]
+  ]) {
+    test(`PC12 - ${nombre}`, async () => {
+      const cliente = await ingresar();
+      const formulario = await cliente.solicitar('/tickets/nuevo');
+      const datos = datosTicket('Caso PC12', cambios);
+      const respuesta = await cliente.solicitar('/tickets', {
+        ...datos, csrfToken: tokenCSRF(formulario.html)
+      });
+      assert.equal(respuesta.status, esperado);
+      assert.equal(cantidadTickets(), esperado === 303 ? 1 : 0);
+      if (esperado === 303) {
+        const guardado = db.prepare('SELECT titulo, descripcion, estado FROM tickets').get();
+        assert.equal(guardado.titulo, datos.titulo);
+        assert.equal(guardado.descripcion, datos.descripcion);
+        assert.equal(guardado.estado, 'Pendiente');
+      }
+    });
+  }
+
+  test('PC12 - Rechaza un token incorrecto y el token de otra sesión', async () => {
+    const cliente = await ingresar();
+    await cliente.solicitar('/tickets/nuevo');
+    const otro = await ingresar(segundoCliente);
+    const formularioAjeno = await otro.solicitar('/tickets/nuevo');
+    for (const csrfToken of ['incorrecto', tokenCSRF(formularioAjeno.html)]) {
+      const respuesta = await cliente.solicitar('/tickets', { ...datosTicket('Token ajeno'), csrfToken });
+      assert.equal(respuesta.status, 403);
+      assert.equal(cantidadTickets(), 0);
+    }
+  });
+
+  test('PC12 - Rechaza identificadores inválidos e inexistentes sin cambiar tickets', async () => {
+    const cliente = await ingresar();
+    const id = await crearTicket(cliente, 'Conservar estado');
+    const personal = await ingresar(personalDemo, '/personal');
+    const panel = await personal.solicitar('/personal');
+    for (const [numero, esperado] of [['abc', 400], ['0', 400], ['-1', 400], ['1.5', 400], ['999999', 404]]) {
+      const respuesta = await personal.solicitar(`/personal/tickets/${numero}/estado`, {
+        estado: 'En proceso', csrfToken: tokenCSRF(panel.html)
+      });
+      assert.equal(respuesta.status, esperado);
+      assert.equal(db.prepare('SELECT estado FROM tickets WHERE id = ?').get(id).estado, 'Pendiente');
+    }
+  });
+
+  test('PC12 - No permite reabrir un ticket resuelto', async () => {
+    const cliente = await ingresar();
+    const id = await crearTicket(cliente, 'Ticket finalizado');
+    const personal = await ingresar(personalDemo, '/personal');
+    const panel = await personal.solicitar('/personal');
+    const csrfToken = tokenCSRF(panel.html);
+    for (const estado of ['En proceso', 'Resuelto']) {
+      assert.equal((await personal.solicitar(`/personal/tickets/${id}/estado`, { estado, csrfToken })).status, 303);
+    }
+    for (const estado of ['Pendiente', 'En proceso', 'Resuelto']) {
+      assert.equal((await personal.solicitar(`/personal/tickets/${id}/estado`, { estado, csrfToken })).status, 409);
+    }
+    assert.equal(db.prepare('SELECT estado FROM tickets WHERE id = ?').get(id).estado, 'Resuelto');
+  });
+
+  test('PC12 - Cambiar estado requiere CSRF válido aun siendo personal', async () => {
+    const cliente = await ingresar();
+    const id = await crearTicket(cliente, 'Cambio protegido');
+    const personal = await ingresar(personalDemo, '/personal');
+    await personal.solicitar('/personal');
+    for (const datos of [{ estado: 'En proceso' }, { estado: 'En proceso', csrfToken: 'incorrecto' }]) {
+      assert.equal((await personal.solicitar(`/personal/tickets/${id}/estado`, datos)).status, 403);
+    }
+    assert.equal(db.prepare('SELECT estado FROM tickets WHERE id = ?').get(id).estado, 'Pendiente');
+  });
+
+  test('PC12 - Muestra el título como texto escapado en ambos paneles', async () => {
+    const cliente = await ingresar();
+    const formulario = await cliente.solicitar('/tickets/nuevo');
+    const titulo = '<script>alert(1)</script>';
+    assert.equal((await cliente.solicitar('/tickets', {
+      ...datosTicket(titulo), csrfToken: tokenCSRF(formulario.html)
+    })).status, 303);
+    const personal = await ingresar(personalDemo, '/personal');
+    for (const pagina of [await cliente.solicitar('/tickets'), await personal.solicitar('/personal')]) {
+      assert.ok(pagina.html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+      assert.ok(!pagina.html.includes(titulo));
+    }
+  });
+
 });
+

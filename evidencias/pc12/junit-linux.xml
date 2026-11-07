@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testsuite name="PC11 y PC12 - Sistema de tickets de la sanguchería" time="1.251783" disabled="0" errors="0" tests="24" failures="0" skipped="0" timestamp="2026-11-07T01:12:22.457Z" hostname="f4dbe04b8d1e">
+		<testcase name="PC11-F01 - Exige sesión para consultar tickets y el panel del personal" time="0.027141" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F02 - Rechaza una contraseña incorrecta y mantiene el acceso bloqueado" time="0.047606" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F03 - El cliente inicia sesión y accede al formulario de incidencias" time="0.041051" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F04 - El cliente no puede acceder al panel ni cambiar estados" time="0.038386" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F05 - Rechaza una descripción de 9 caracteres sin guardar el ticket" time="0.037928" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F06 - Rechaza un título de 81 caracteres sin guardar el ticket" time="0.036269" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F07 - Registra una incidencia válida con número y estado Pendiente" time="0.041070" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F08 - Cada cliente consulta sus tickets y registra solo sobre sus pedidos" time="0.077880" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F09 - Rechaza un registro sin token CSRF" time="0.037978" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F10 - El personal atiende y resuelve el mismo ticket; el cliente ve Resuelto" time="0.084669" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F11 - Impide pasar directamente de Pendiente a Resuelto" time="0.073041" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC11-F12 - Cerrar sesión invalida también la cookie anterior" time="0.038503" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Título de 1 y descripción de 10 caracteres" time="0.037948" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Título de 80 y descripción de 500 caracteres" time="0.035791" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Descripción de 501 caracteres" time="0.035809" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Título compuesto solo por espacios" time="0.036984" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Categoría fuera del catálogo" time="0.036157" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Prioridad fuera del catálogo" time="0.035549" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Pedido inexistente" time="0.037522" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Rechaza un token incorrecto y el token de otra sesión" time="0.073326" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Rechaza identificadores inválidos e inexistentes sin cambiar tickets" time="0.079868" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - No permite reabrir un ticket resuelto" time="0.076954" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Cambiar estado requiere CSRF válido aun siendo personal" time="0.072016" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+		<testcase name="PC12 - Muestra el título como texto escapado en ambos paneles" time="0.071025" classname="PC11 y PC12 - Sistema de tickets de la sanguchería" file="/workspace/scratch/ab9e13062182/pc12_work/tests/pc11.test.cjs"/>
+	</testsuite>
+	<!-- tests 24 -->
+	<!-- suites 1 -->
+	<!-- pass 24 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 1451.588152 -->
+</testsuites>

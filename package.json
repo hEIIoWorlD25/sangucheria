@@ -2,10 +2,12 @@
   "name": "sangucheria-tickets",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "test": "node --test tests/pc11.test.cjs",
-    "test:ci": "node scripts/pruebas-ci.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "test:ci": "node scripts/pruebas-ci.cjs",
+    "start": "node app.js",
+    "check": "node scripts/revisar-sintaxis.cjs"
   },
   "keywords": [],
   "author": "",
