@@ -2,12 +2,14 @@
   "name": "sangucheria-tickets",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-  "test": "node --test tests/pc11.test.cjs",
-  "test:ci": "node scripts/pruebas-ci.cjs",
-  "build:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/styles.css --minify",
-  "watch:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/styles.css --watch"
+    "test": "node --test tests/pc11.test.cjs",
+    "test:ci": "node scripts/pruebas-ci.cjs",
+    "build:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/styles.css --minify",
+    "watch:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/styles.css --watch",
+    "check": "node scripts/revisar-sintaxis.cjs",
+    "start": "node app.js"
   },
   "keywords": [],
   "author": "",
