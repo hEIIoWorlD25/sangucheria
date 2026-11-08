@@ -115,6 +115,7 @@ db.prepare(`
   cliente.id,
   'Pedido de prueba para la PC8'
 );
+
 const correoPersonal = 'personal.demo@example.test';
 
 const personalExistente = db.prepare(
@@ -130,40 +131,36 @@ if (!personalExistente) {
     64
   ).toString('hex');
 
-  
-/*
- * Pedidos de demostración.
- * Genera 12 códigos para el cliente de prueba.
- * No elimina ni modifica pedidos existentes.
- */
+  db.prepare(`
+    INSERT INTO usuarios
+      (nombre, correo, password_hash, salt, rol)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    'Personal de la sanguchería',
+    correoPersonal,
+    hashPersonal,
+    saltPersonal,
+    'personal'
+  );
+}
 
+// Pedidos de demostración del cliente de prueba.
 const insertarPedidoDemo = db.prepare(`
-  INSERT INTO pedidos (
-    codigo,
-    usuario_id,
-    descripcion
-  )
+  INSERT INTO pedidos (codigo, usuario_id, descripcion)
   VALUES (?, ?, ?)
   ON CONFLICT(codigo) DO NOTHING
 `);
 
-for (let numero = 1; numero <= 12; numero++) {
-
+for (let numero = 2; numero <= 12; numero++) {
   const codigo = `PED-${String(numero).padStart(3, '0')}`;
-
-  const descripcion = `Pedido de demostración número ${numero}`;
 
   insertarPedidoDemo.run(
     codigo,
     cliente.id,
-    descripcion
+    `Pedido de demostración número ${numero}`
   );
-
 }
 
-console.log('Pedidos de demostración preparados.');
-
-}
 
 // Muestra los datos cuando ejecutamos este archivo directamente.
 if (require.main === module) {
