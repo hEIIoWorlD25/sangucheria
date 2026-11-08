@@ -1,0 +1,10 @@
+@import "tailwindcss" source(none);
+
+@source "../public";
+@source "../tickets.js";
+@source "../personal.js";
+
+@theme {
+  --color-marca: #a33920;
+  --color-marca-oscura: #822c18;
+}

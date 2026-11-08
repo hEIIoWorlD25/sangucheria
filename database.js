@@ -130,17 +130,39 @@ if (!personalExistente) {
     64
   ).toString('hex');
 
-  db.prepare(`
-    INSERT INTO usuarios
-      (nombre, correo, password_hash, salt, rol)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(
-    'Personal de la sanguchería',
-    correoPersonal,
-    hashPersonal,
-    saltPersonal,
-    'personal'
+  
+/*
+ * Pedidos de demostración.
+ * Genera 12 códigos para el cliente de prueba.
+ * No elimina ni modifica pedidos existentes.
+ */
+
+const insertarPedidoDemo = db.prepare(`
+  INSERT INTO pedidos (
+    codigo,
+    usuario_id,
+    descripcion
+  )
+  VALUES (?, ?, ?)
+  ON CONFLICT(codigo) DO NOTHING
+`);
+
+for (let numero = 1; numero <= 12; numero++) {
+
+  const codigo = `PED-${String(numero).padStart(3, '0')}`;
+
+  const descripcion = `Pedido de demostración número ${numero}`;
+
+  insertarPedidoDemo.run(
+    codigo,
+    cliente.id,
+    descripcion
   );
+
+}
+
+console.log('Pedidos de demostración preparados.');
+
 }
 
 // Muestra los datos cuando ejecutamos este archivo directamente.
