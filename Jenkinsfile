@@ -28,6 +28,14 @@ pipeline {
                 sh 'npm ci'
             }
         }
+        
+        stage('Auditoria de seguridad') {
+             steps {
+                echo 'Verificando vulnerabilidades de produccion'
+                sh 'npm audit --omit=dev --audit-level=moderate'
+            }
+        }
+
 
         stage('Revisar sintaxis') {
             steps {
