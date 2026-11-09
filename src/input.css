@@ -3,6 +3,7 @@
 @source "../public";
 @source "../tickets.js";
 @source "../personal.js";
+@source "../app.js";
 
 @theme {
   --color-marca: #a33920;

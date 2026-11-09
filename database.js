@@ -70,8 +70,24 @@ db.exec(`
     FOREIGN KEY (pedido_id) REFERENCES pedidos(id)
   );
 
+
   CREATE INDEX IF NOT EXISTS idx_tickets_pedido
     ON tickets(pedido_id);
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ticket_pedidos (
+    ticket_id INTEGER NOT NULL,
+    pedido_id INTEGER NOT NULL,
+
+    PRIMARY KEY (ticket_id, pedido_id),
+
+    FOREIGN KEY (ticket_id)
+      REFERENCES tickets(id) ON DELETE CASCADE,
+
+    FOREIGN KEY (pedido_id)
+      REFERENCES pedidos(id)
+  );
 `);
 
 const correoPrueba = 'cliente.pc8@example.test';
@@ -161,6 +177,23 @@ for (let numero = 2; numero <= 12; numero++) {
   );
 }
 
+
+// Asignar un pedido de prueba a clientes sin pedidos.
+// No modifica pedidos ni tickets existentes.
+db.prepare(`
+  INSERT INTO pedidos (codigo, usuario_id, descripcion)
+  SELECT
+    'DEMO-' || u.id,
+    u.id,
+    'Pedido de demostración del cliente'
+  FROM usuarios AS u
+  WHERE u.rol = 'cliente'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM pedidos AS p
+      WHERE p.usuario_id = u.id
+    )
+`).run();
 
 // Muestra los datos cuando ejecutamos este archivo directamente.
 if (require.main === module) {

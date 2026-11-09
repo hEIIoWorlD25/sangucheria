@@ -2,7 +2,7 @@
 'use strict';
 
 const express = require('express');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, scryptSync, timingSafeEqual } = require('node:crypto');
 const db = require('./database');
 
 const router = express.Router();
@@ -53,7 +53,28 @@ router.get('/', (req, res) => {
       t.descripcion,
       t.prioridad,
       t.estado,
-      p.codigo,
+      
+COALESCE(
+  (
+    SELECT GROUP_CONCAT(
+      CASE
+        WHEN p2.codigo GLOB 'PED-???-USR-[0-9]*'
+          THEN SUBSTR(p2.codigo, 1, 7)
+        ELSE p2.codigo
+      END,
+      ', '
+    )
+    FROM ticket_pedidos tp
+    JOIN pedidos p2 ON p2.id = tp.pedido_id
+    WHERE tp.ticket_id = t.id
+  ),
+  CASE
+    WHEN p.codigo GLOB 'PED-???-USR-[0-9]*'
+      THEN SUBSTR(p.codigo, 1, 7)
+    ELSE p.codigo
+  END
+) AS codigo,
+
       u.nombre AS cliente
     FROM tickets t
     JOIN pedidos p ON p.id = t.pedido_id
@@ -588,6 +609,265 @@ router.post('/tickets/:id/estado', (req, res) => {
   }
 
   res.redirect(303, '/personal?actualizado=1');
+});
+
+/* REGISTRO SEGURO DE PERSONAL */
+
+function formularioNuevoPersonal(token, error = '', creado = false) {
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Registrar personal | Sanguchería</title>
+      <link rel="stylesheet" href="/styles.css">
+    </head>
+
+    <body class="min-h-screen bg-stone-100 p-6">
+      <main class="mx-auto mt-10 max-w-lg rounded-3xl
+                   bg-white p-8 shadow-xl">
+
+        <a href="/personal"
+           class="text-sm font-semibold text-orange-800">
+          ← Volver al panel
+        </a>
+
+        <h1 class="mt-6 text-3xl font-extrabold text-stone-900">
+          Registrar trabajador
+        </h1>
+
+        <p class="mt-3 text-stone-500">
+          Crea una cuenta para un nuevo integrante
+          del personal de la sanguchería.
+        </p>
+
+        ${creado ? `
+          <p role="status"
+             class="mt-6 rounded-xl bg-green-50 p-4 text-green-800">
+            Trabajador registrado correctamente.
+          </p>
+        ` : ''}
+
+        ${error ? `
+          <p role="alert"
+             class="mt-6 rounded-xl bg-red-50 p-4 text-red-700">
+            ${escapar(error)}
+          </p>
+        ` : ''}
+
+        <form action="/personal/registrar"
+              method="POST"
+              class="mt-8 space-y-5">
+
+          <input type="hidden"
+                 name="csrfToken"
+                 value="${escapar(token)}">
+
+          <label class="block">
+            <span class="font-semibold text-stone-700">
+              Nombre completo
+            </span>
+            <input name="nombre"
+                   required minlength="2" maxlength="80"
+                   autocomplete="off"
+                   class="mt-2 w-full rounded-xl border
+                          border-stone-300 p-3">
+          </label>
+
+          <label class="block">
+            <span class="font-semibold text-stone-700">
+              Correo electrónico
+            </span>
+            <input name="correo" type="email"
+                   required maxlength="254"
+                   autocomplete="off"
+                   class="mt-2 w-full rounded-xl border
+                          border-stone-300 p-3">
+          </label>
+
+          <label class="block">
+            <span class="font-semibold text-stone-700">
+              Contraseña del nuevo trabajador
+            </span>
+            <input name="password" type="password"
+                   required minlength="12" maxlength="128"
+                   autocomplete="new-password"
+                   class="mt-2 w-full rounded-xl border
+                          border-stone-300 p-3">
+          </label>
+
+          <label class="block">
+            <span class="font-semibold text-stone-700">
+              Confirmar contraseña nueva
+            </span>
+            <input name="confirmarPassword" type="password"
+                   required minlength="12" maxlength="128"
+                   autocomplete="new-password"
+                   class="mt-2 w-full rounded-xl border
+                          border-stone-300 p-3">
+          </label>
+
+          <div class="rounded-2xl border border-orange-200
+                      bg-orange-50 p-4">
+            <label class="block">
+              <span class="font-semibold text-orange-900">
+                Tu contraseña actual
+              </span>
+              <p class="mt-1 text-sm text-stone-600">
+                Confirma tu identidad para autorizar
+                la creación de esta cuenta.
+              </p>
+              <input name="passwordActual" type="password"
+                     required maxlength="128"
+                     autocomplete="current-password"
+                     class="mt-3 w-full rounded-xl border
+                            border-stone-300 bg-white p-3">
+            </label>
+          </div>
+
+          <button type="submit"
+                  class="w-full rounded-xl bg-orange-800
+                         p-4 font-bold text-white
+                         hover:bg-orange-900">
+            Registrar trabajador
+          </button>
+        </form>
+      </main>
+    </body>
+    </html>
+  `;
+}
+
+// Estas rutas quedan protegidas por router.use:
+// únicamente pueden acceder usuarios con rol personal.
+router.get('/registrar', (req, res) => {
+  if (!req.session.csrf) {
+    req.session.csrf = randomBytes(24).toString('hex');
+  }
+
+  res.send(
+    formularioNuevoPersonal(
+      req.session.csrf,
+      '',
+      req.query.creado === '1'
+    )
+  );
+});
+
+router.post('/registrar', (req, res) => {
+  const token = req.session.csrf;
+
+  if (
+    typeof token !== 'string' ||
+    typeof req.body?.csrfToken !== 'string' ||
+    req.body.csrfToken !== token
+  ) {
+    return res.status(403).send('Formulario no válido.');
+  }
+
+  const {
+    nombre,
+    correo,
+    password,
+    confirmarPassword,
+    passwordActual
+  } = req.body || {};
+
+  if (
+    [nombre, correo, password, confirmarPassword, passwordActual]
+      .some(valor => typeof valor !== 'string')
+  ) {
+    return res.status(400).send(
+      formularioNuevoPersonal(token, 'Datos incorrectos.')
+    );
+  }
+
+  const nombreLimpio = nombre.trim();
+  const correoLimpio = correo.trim().toLowerCase();
+
+  if (
+    nombreLimpio.length < 2 ||
+    nombreLimpio.length > 80 ||
+    correoLimpio.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoLimpio) ||
+    password.length < 12 ||
+    password.length > 128 ||
+    password !== confirmarPassword ||
+    !passwordActual ||
+    passwordActual.length > 128
+  ) {
+    return res.status(400).send(
+      formularioNuevoPersonal(
+        token,
+        'Revisa los datos y las contraseñas ingresadas.'
+      )
+    );
+  }
+
+  // Consultar nuevamente al trabajador autorizado.
+  const autorizado = db.prepare(`
+    SELECT password_hash, salt
+    FROM usuarios
+    WHERE id = ? AND rol = 'personal'
+  `).get(req.session.usuarioId);
+
+  if (!autorizado) {
+    return res.status(403).send('Acceso no autorizado.');
+  }
+
+  const hashIngresado = scryptSync(
+    passwordActual,
+    autorizado.salt,
+    64
+  );
+
+  const hashGuardado = Buffer.from(
+    autorizado.password_hash,
+    'hex'
+  );
+
+  if (
+    hashIngresado.length !== hashGuardado.length ||
+    !timingSafeEqual(hashIngresado, hashGuardado)
+  ) {
+    return res.status(403).send(
+      formularioNuevoPersonal(
+        token,
+        'No se pudo autorizar el registro.'
+      )
+    );
+  }
+
+  const existente = db.prepare(`
+    SELECT id FROM usuarios WHERE correo = ?
+  `).get(correoLimpio);
+
+  if (existente) {
+    return res.status(409).send(
+      formularioNuevoPersonal(
+        token,
+        'Este correo ya está registrado.'
+      )
+    );
+  }
+
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(
+    password,
+    salt,
+    64
+  ).toString('hex');
+
+  // El rol se asigna en el servidor.
+  // Nunca se acepta desde el formulario.
+  db.prepare(`
+    INSERT INTO usuarios
+      (nombre, correo, password_hash, salt, rol)
+    VALUES (?, ?, ?, ?, 'personal')
+  `).run(nombreLimpio, correoLimpio, hash, salt);
+
+  res.redirect(303, '/personal/registrar?creado=1');
 });
 
 module.exports = router;

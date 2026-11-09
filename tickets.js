@@ -176,23 +176,49 @@ function formulario(token, datos = {}, error = '') {
                  name="csrfToken"
                  value="${escapar(token)}">
 
-          <!-- Código del pedido -->
-          <div>
-            <label for="codigo-pedido"
-                   class="mb-2 block text-sm font-semibold text-stone-700">
-              Código del pedido
-            </label>
+          
+<!-- Selección de uno o varios pedidos -->
+<div>
+  <p class="mb-3 text-sm font-semibold text-stone-700">
+    Selecciona los pedidos relacionados
+  </p>
 
-            <input
-              id="codigo-pedido"
-              name="codigoPedido"
-              placeholder="Ejemplo: PED-001"
-              value="${escapar(datos.codigoPedido)}"
-              maxlength="40"
-              required
-              class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3.5 text-stone-900 shadow-sm outline-none transition-all duration-200 focus:border-orange-600 focus:ring-4 focus:ring-orange-100"
-            >
-          </div>
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    ${Array.from({ length: 12 }, (_, i) => {
+      const codigo = `PED-${String(i + 1).padStart(3, '0')}`;
+
+      const seleccionados = Array.isArray(datos.codigosPedido)
+        ? datos.codigosPedido
+        : datos.codigoPedido
+          ? [datos.codigoPedido]
+          : [];
+
+      return `
+        <label class="flex cursor-pointer items-center gap-2
+          rounded-xl border border-stone-200 p-3
+          transition hover:border-orange-400 hover:bg-orange-50">
+
+          <input
+            type="checkbox"
+            name="codigoPedido"
+            value="${codigo}"
+            ${seleccionados.includes(codigo) ? 'checked' : ''}
+            class="h-4 w-4 accent-orange-800"
+          >
+
+          <span class="text-sm font-medium text-stone-700">
+            ${codigo}
+          </span>
+        </label>
+      `;
+    }).join('')}
+  </div>
+
+  <p class="mt-3 text-sm text-stone-500">
+    Puedes seleccionar uno o varios pedidos
+    para registrar una sola incidencia.
+  </p>
+</div>
 
           <!-- Título -->
           <div>
@@ -351,7 +377,28 @@ router.use((req, res, next) => {
 router.get('/', (req, res) => {
 
   const tickets = db.prepare(`
-    SELECT t.id, t.titulo, t.prioridad, t.estado, p.codigo
+    SELECT t.id, t.titulo, t.prioridad, t.estado, 
+COALESCE(
+  (
+    SELECT GROUP_CONCAT(
+      CASE
+        WHEN p2.codigo GLOB 'PED-???-USR-[0-9]*'
+          THEN SUBSTR(p2.codigo, 1, 7)
+        ELSE p2.codigo
+      END,
+      ', '
+    )
+    FROM ticket_pedidos tp
+    JOIN pedidos p2 ON p2.id = tp.pedido_id
+    WHERE tp.ticket_id = t.id
+  ),
+  CASE
+    WHEN p.codigo GLOB 'PED-???-USR-[0-9]*'
+      THEN SUBSTR(p.codigo, 1, 7)
+    ELSE p.codigo
+  END
+) AS codigo
+
     FROM tickets t
     JOIN pedidos p ON p.id = t.pedido_id
     WHERE p.usuario_id = ?
@@ -681,19 +728,31 @@ router.get('/', (req, res) => {
   `));
 });
 
-// Abrir formulario de registro.
+
 router.get('/nuevo', (req, res) => {
   if (!req.session.csrf) {
     req.session.csrf = randomBytes(24).toString('hex');
   }
 
-  res.send(formulario(req.session.csrf));
+  // Buscar un pedido perteneciente al cliente actual.
+  const pedido = db.prepare(`
+    SELECT codigo
+    FROM pedidos
+    WHERE usuario_id = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(req.session.usuarioId);
+
+  // Mostrar su código en el formulario.
+  res.send(formulario(req.session.csrf, {
+    codigoPedido: pedido?.codigo || ''
+  }));
 });
 
-// Registrar un ticket.
-router.post('/', (req, res) => {
 
-  // Protección CSRF.
+
+router.post('/', (req, res) => {
+  // Mantener la protección CSRF.
   if (
     typeof req.session.csrf !== 'string' ||
     req.body?.csrfToken !== req.session.csrf
@@ -703,19 +762,31 @@ router.post('/', (req, res) => {
     );
   }
 
+  // Aceptar uno o varios códigos enviados por el formulario.
+  const recibidos = Array.isArray(req.body?.codigoPedido)
+    ? req.body.codigoPedido
+    : [req.body?.codigoPedido];
+
+  const codigosPedido = recibidos
+    .filter(valor => typeof valor === 'string')
+    .map(valor => valor.trim());
+
+  const datos = {
+    codigoPedido: codigosPedido[0] || '',
+    codigosPedido
+  };
+
   const campos = [
-    'codigoPedido',
     'titulo',
     'descripcion',
     'categoria',
     'prioridad'
   ];
 
-  const datos = {};
-  let tiposValidos = true;
+  let tiposValidos = recibidos.length === codigosPedido.length;
 
   for (const campo of campos) {
-    if (typeof req.body[campo] !== 'string') {
+    if (typeof req.body?.[campo] !== 'string') {
       tiposValidos = false;
       datos[campo] = '';
     } else {
@@ -728,10 +799,17 @@ router.post('/', (req, res) => {
   if (!tiposValidos) {
     error = 'Los campos deben contener texto.';
   } else if (
-    !datos.codigoPedido ||
-    datos.codigoPedido.length > 40
+    codigosPedido.length < 1 ||
+    codigosPedido.length > 12 ||
+    codigosPedido.some(
+      codigo => !/^PED-(00[1-9]|01[0-2])$/.test(codigo)
+    )
   ) {
-    error = 'Ingresa un código de pedido válido.';
+    error = 'Selecciona pedidos válidos entre PED-001 y PED-012.';
+  } else if (
+    new Set(codigosPedido).size !== codigosPedido.length
+  ) {
+    error = 'No repitas el mismo pedido.';
   } else if (
     [...datos.titulo].length < 1 ||
     [...datos.titulo].length > 80
@@ -754,39 +832,113 @@ router.post('/', (req, res) => {
     );
   }
 
-  // Verificar que el pedido pertenece al cliente.
-  const pedido = db.prepare(`
+  const usuarioId = req.session.usuarioId;
+
+  // Comprobar que el cliente tiene habilitados
+  // los pedidos de demostración.
+  const marcador = db.prepare(`
     SELECT id FROM pedidos
     WHERE codigo = ? AND usuario_id = ?
-  `).get(
-    datos.codigoPedido,
-    req.session.usuarioId
-  );
+  `).get(`DEMO-${usuarioId}`, usuarioId);
 
-  if (!pedido) {
-    return res.status(400).send(
-      formulario(
-        req.session.csrf,
-        datos,
-        'El pedido no existe o no pertenece a tu cuenta.'
-      )
-    );
+  const referencias = [];
+
+  for (const codigo of codigosPedido) {
+    // Buscar el pedido propio.
+    const pedidoPropio = db.prepare(`
+      SELECT id FROM pedidos
+      WHERE codigo = ? AND usuario_id = ?
+    `).get(codigo, usuarioId);
+
+    if (pedidoPropio) {
+      referencias.push({ id: pedidoPropio.id });
+      continue;
+    }
+
+    if (!marcador) {
+      return res.status(400).send(
+        formulario(
+          req.session.csrf,
+          datos,
+          'El pedido no existe o no pertenece a tu cuenta.'
+        )
+      );
+    }
+
+    // Crear una referencia interna exclusiva del cliente.
+    referencias.push({
+      interno: `${codigo}-USR-${usuarioId}`,
+      codigo
+    });
   }
 
-  // Guardar el ticket.
-  db.prepare(`
-    INSERT INTO tickets
-      (pedido_id, titulo, descripcion, categoria, prioridad)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(
-    pedido.id,
-    datos.titulo,
-    datos.descripcion,
-    datos.categoria,
-    datos.prioridad
-  );
+  // Guardar todo o nada.
+  db.exec('BEGIN IMMEDIATE');
+
+  try {
+    const idsPedidos = [];
+
+    for (const referencia of referencias) {
+      if (referencia.id) {
+        idsPedidos.push(referencia.id);
+        continue;
+      }
+
+      db.prepare(`
+        INSERT INTO pedidos (codigo, usuario_id, descripcion)
+        VALUES (?, ?, ?)
+        ON CONFLICT(codigo) DO NOTHING
+      `).run(
+        referencia.interno,
+        usuarioId,
+        `Pedido de demostración ${referencia.codigo}`
+      );
+
+      const pedido = db.prepare(`
+        SELECT id FROM pedidos
+        WHERE codigo = ? AND usuario_id = ?
+      `).get(referencia.interno, usuarioId);
+
+      if (!pedido) {
+        throw new Error('No se pudo asociar el pedido.');
+      }
+
+      idsPedidos.push(pedido.id);
+    }
+
+    // Un único ticket, aunque incluya varios pedidos.
+    const resultado = db.prepare(`
+      INSERT INTO tickets
+        (pedido_id, titulo, descripcion, categoria, prioridad)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      idsPedidos[0],
+      datos.titulo,
+      datos.descripcion,
+      datos.categoria,
+      datos.prioridad
+    );
+
+    const ticketId = Number(resultado.lastInsertRowid);
+
+    // Relacionar los pedidos seleccionados con el ticket.
+    const asociar = db.prepare(`
+      INSERT INTO ticket_pedidos (ticket_id, pedido_id)
+      VALUES (?, ?)
+    `);
+
+    for (const pedidoId of idsPedidos) {
+      asociar.run(ticketId, pedidoId);
+    }
+
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 
   res.redirect(303, '/tickets?creado=1');
 });
+
 
 module.exports = router;

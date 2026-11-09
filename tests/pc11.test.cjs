@@ -385,6 +385,92 @@ describe('PC11 y PC12 - Sistema de tickets de la sanguchería', { concurrency: f
       assert.ok(!pagina.html.includes(titulo));
     }
   });
+  
+  test('PC13 - Un ticket puede contener tres pedidos', async () => {
+    const cliente = await ingresar();
 
+    const formulario = await cliente.solicitar('/tickets/nuevo');
+    const datos = new URLSearchParams({
+      titulo: 'Incidencia multipedido PC13',
+      descripcion: 'Los tres pedidos llegaron incompletos.',
+      categoria: 'Pedido incompleto',
+      prioridad: 'Media',
+      csrfToken: tokenCSRF(formulario.html)
+    });
+
+    const codigos = ['PED-001', 'PED-004', 'PED-012'];
+
+    for (const codigo of codigos) {
+      datos.append('codigoPedido', codigo);
+    }
+
+    const respuesta = await cliente.solicitar('/tickets', datos);
+
+    assert.equal(respuesta.status, 303);
+    assert.equal(cantidadTickets(), 1);
+
+    const ticket = db.prepare(`
+      SELECT id FROM tickets
+      WHERE titulo = ?
+    `).get('Incidencia multipedido PC13');
+
+    assert.ok(ticket);
+
+    const cantidad = db.prepare(`
+      SELECT COUNT(*) AS total
+      FROM ticket_pedidos
+      WHERE ticket_id = ?
+    `).get(ticket.id);
+
+    assert.equal(cantidad.total, 3);
+
+    const listado = await cliente.solicitar('/tickets');
+    const fila = filaCliente(
+      listado.html,
+      'Incidencia multipedido PC13'
+    );
+
+    for (const codigo of codigos) {
+      assert.ok(fila.includes(codigo));
+    }
+
+    const personal = await ingresar(personalDemo, '/personal');
+    const panel = await personal.solicitar('/personal');
+
+    const filaPersonal = panel.html
+      .match(new RegExp(
+        `<tr data-ticket-id="${ticket.id}">[\\s\\S]*?<\\/tr>`
+      ))?.[0];
+
+    assert.ok(filaPersonal);
+
+    for (const codigo of codigos) {
+      assert.ok(filaPersonal.includes(codigo));
+    }
+  });
+
+  test('PC13 - Impide seleccionar pedidos duplicados', async () => {
+    const cliente = await ingresar();
+
+    const formulario = await cliente.solicitar('/tickets/nuevo');
+
+    const datos = new URLSearchParams({
+      titulo: 'Pedidos duplicados PC13',
+      descripcion: 'Prueba de rechazo de pedidos duplicados.',
+      categoria: 'Pedido incompleto',
+      prioridad: 'Media',
+      csrfToken: tokenCSRF(formulario.html)
+    });
+
+    datos.append('codigoPedido', 'PED-001');
+    datos.append('codigoPedido', 'PED-001');
+
+    const respuesta = await cliente.solicitar('/tickets', datos);
+
+    assert.equal(respuesta.status, 400);
+    assert.equal(cantidadTickets(), 0);
+  });
+  
 });
+
 
