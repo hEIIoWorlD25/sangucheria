@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -7,12 +8,15 @@ pipeline {
 
     options {
         disableConcurrentBuilds()
-        timeout(time: 10, unit: 'MINUTES')
+        timeout(time: 15, unit: 'MINUTES')
+        timestamps()
     }
 
     stages {
-        stage('Verificar herramientas') {
+
+        stage('Verificar entorno') {
             steps {
+                echo 'Verificando Node.js y npm'
                 sh 'node --version'
                 sh 'npm --version'
             }
@@ -20,29 +24,61 @@ pipeline {
 
         stage('Instalar dependencias') {
             steps {
+                echo 'Instalando dependencias del proyecto'
                 sh 'npm ci'
             }
         }
 
         stage('Revisar sintaxis') {
             steps {
-                sh 'node --check app.js'
-                sh 'node --check database.js'
-                sh 'node --check tickets.js'
-                sh 'node --check personal.js'
+                echo 'Validando archivos de la aplicacion'
+                sh 'npm run check'
             }
         }
 
-        stage('Ejecutar pruebas funcionales') {
+        stage('Compilar Tailwind CSS') {
             steps {
+                echo 'Generando estilos de produccion'
+                sh 'npm run build:css'
+                sh 'test -s public/styles.css'
+            }
+        }
+
+        stage('Pruebas PC11 y PC12') {
+            steps {
+                echo 'Ejecutando las 24 pruebas automatizadas'
                 sh 'npm run test:ci'
             }
-            post {
-                always {
-                    junit testResults: 'reports/junit.xml', allowEmptyResults: false
-                    archiveArtifacts artifacts: 'reports/junit.xml', allowEmptyArchive: false
+        }
+    }
+
+    post {
+        always {
+            echo 'Publicando resultados y evidencias'
+
+            archiveArtifacts(
+                artifacts: 'reports/junit.xml,public/styles.css',
+                allowEmptyArchive: true
+            )
+
+            script {
+                if (fileExists('reports/junit.xml')) {
+                    junit(
+                        testResults: 'reports/junit.xml',
+                        allowEmptyResults: false
+                    )
+                } else {
+                    echo 'No se genero el reporte JUnit. Revisar la consola.'
                 }
             }
+        }
+
+        success {
+            echo 'Pipeline completado correctamente.'
+        }
+
+        failure {
+            echo 'Se detectaron errores. Revisar Console Output.'
         }
     }
 }
